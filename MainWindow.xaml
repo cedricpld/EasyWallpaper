@@ -1,0 +1,54 @@
+<Window x:Class="CGWallpaper.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EasyWallpaper"
+        Width="920" Height="600"
+        MinWidth="740" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B0B0C"
+        Foreground="#FAFAFA"
+        FontFamily="Segoe UI">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Monitor Layout Canvas -->
+        <Border Grid.Row="0" Background="#111113" BorderBrush="#27272A" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+            <Canvas x:Name="MonitorCanvas" SizeChanged="MonitorCanvas_SizeChanged"/>
+        </Border>
+
+        <!-- Minimalist Bottom Bar -->
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sleek Status Pill -->
+            <Border x:Name="StatusPill"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="#141416"
+                    BorderBrush="#27272A"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12,7">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="#71717A" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtStatus"
+                               Text="Cliquez sur un écran ou glissez un média"
+                               Foreground="#A1A1AA"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
+            <Button x:Name="BtnRefresh" Grid.Column="1" Style="{StaticResource MonoSecondaryButton}" Content="Actualiser" Margin="12,0,10,0" Click="BtnRefresh_Click"/>
+            <Button x:Name="BtnApply" Grid.Column="2" Style="{StaticResource MonoPrimaryButton}" Content="Appliquer" Click="BtnApply_Click"/>
+        </Grid>
+    </Grid>
+</Window>

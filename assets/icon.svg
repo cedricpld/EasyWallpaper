@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Deep monochrome rounded badge -->
+  <rect x="12" y="12" width="232" height="232" rx="52" fill="#0B0B0C" stroke="#2E2E32" stroke-width="6"/>
+  <!-- Outer eclipse ring -->
+  <circle cx="128" cy="128" r="76" fill="none" stroke="#FAFAFA" stroke-width="10"/>
+  <!-- Flowing horizon wave cutting across the portal -->
+  <path d="M56 146 C86 116, 122 162, 152 128 C170 108, 186 116, 200 132" fill="none" stroke="#FAFAFA" stroke-width="10" stroke-linecap="round"/>
+  <!-- Secondary depth wave -->
+  <path d="M72 174 C102 154, 140 182, 184 162" fill="none" stroke="#A1A1AA" stroke-width="8" stroke-linecap="round"/>
+  <!-- Minimalist crescent / orb -->
+  <circle cx="152" cy="86" r="14" fill="#FAFAFA"/>
+</svg>
