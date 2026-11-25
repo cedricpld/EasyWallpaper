@@ -1,47 +1,47 @@
 # EasyWallpaper
 
-Gestionnaire de fonds d'écran multi-moniteurs pour Windows 11. Permet d'assigner indépendamment à chaque écran une image, une vidéo locale, une webcam ou un flux vidéo en direct, avec aperçu fidèle et recadrage interactif.
+A multi-monitor desktop wallpaper manager for Windows 11. Assigns local images, looping videos, webcams, or live video streams independently to each display, with accurate aspect-ratio previews and interactive cropping.
 
 ---
 
-## Fonctionnalités
+## Features
 
-- **Agencement réel des écrans** : détection automatique de tous les moniteurs connectés (résolution, orientation portrait/paysage, position relative) et affichage proportionnel dans l'interface.
-- **Médias supportés par écran** :
-  - Images locales (`JPG`, `PNG`, `BMP`, `WebP`, `GIF`) par clic ou glisser-déposer.
-  - Vidéos locales en boucle (`MP4`, `WebM`, `MKV`, `MOV`, `AVI`, `WMV`), son coupé par défaut.
-  - Flux vidéo en direct temps réel : flux HLS (`.m3u8`), flux vidéo directs, YouTube / YouTube Live, ou pages web.
-  - Webcams par image/snapshot (`JPG`, `MJPEG`) avec intervalle de rafraîchissement configurable (`5 s` à `5 min`).
-- **Ajustement et recadrage indépendants** :
-  - Modes `Remplir`, `Ajuster`, `Étirer` et `Centrer` configurables individuellement pour chaque écran.
-  - Aperçu en temps réel au ratio exact de chaque moniteur.
-  - Déplacement à la souris (cliquer-glisser) directement dans la preview pour choisir la zone visible lorsque l'image ou le flux est recadré.
-- **Intégration système** :
-  - Exécutable autonome (`EasyWallpaper.exe`) avec icône embarquée.
-  - Icône permanente dans la zone de notification (Tray) : `Ouvrir`, `Lancer au démarrage`, `Redémarrer`, `Quitter`.
-  - Sauvegarde automatique de la configuration dans `%LOCALAPPDATA%\EasyWallpaper\config.json` et restauration automatique à chaque lancement.
+- **Real-world monitor layout**: Automatically detects all connected displays (resolution, portrait/landscape orientation, relative virtual-desktop position) and renders them proportionally in the interface.
+- **Per-monitor media support**:
+  - Local images (`JPG`, `PNG`, `BMP`, `WebP`, `GIF`) via click or drag-and-drop.
+  - Looping local videos (`MP4`, `WebM`, `MKV`, `MOV`, `AVI`, `WMV`), muted by default.
+  - Real-time live streams: HLS streams (`.m3u8`), direct video URLs, YouTube / YouTube Live, or web pages.
+  - Snapshot webcams (`JPG`, `MJPEG`) with a configurable refresh interval (`5s` to `5m`).
+- **Independent fit and crop**:
+  - Per-display fit modes: `Fill`, `Fit`, `Stretch`, and `Center`.
+  - Real-time preview matching the exact aspect ratio of each monitor.
+  - Click-and-drag directly inside the preview to pan and choose the visible region when an image or live stream is cropped.
+- **System integration**:
+  - Single-file standalone executable (`EasyWallpaper.exe`) with embedded icon.
+  - Persistent system tray icon with `Open`, `Launch on startup`, `Restart`, and `Quit`.
+  - Automatic configuration persistence in `%LOCALAPPDATA%\EasyWallpaper\config.json` and automatic wallpaper restoration on launch.
 
 ---
 
-## Utilisation et compilation
+## Usage and Build
 
-### Prérequis
+### Prerequisites
 
 - Windows 10 / 11 (x64)
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (et [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) pour compiler depuis les sources)
-- Microsoft Edge WebView2 Runtime (préinstallé sur Windows 11)
+- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (and [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build from source)
+- Microsoft Edge WebView2 Runtime (preinstalled on Windows 11)
 
-### Compiler en `.exe` autonome
+### Build a standalone `.exe`
 
-Exécutez le script `Build-EasyWallpaper.bat` ou lancez manuellement :
+Run `Build-EasyWallpaper.bat` or execute:
 
 ```bat
-dotnet publish CGWallpaper.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist
+dotnet publish EasyWallpaper.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist
 ```
 
-L'exécutable généré se trouve dans `dist\EasyWallpaper.exe`. Il peut être déplacé et exécuté seul n'importe où.
+The resulting executable is output to `dist\EasyWallpaper.exe` and can be moved and launched anywhere on its own.
 
-Pour lancer l'application minimisée dans le Tray (utilisé par le démarrage automatique Windows) :
+To launch minimized to the system tray (used by Windows auto-startup):
 
 ```bat
 EasyWallpaper.exe --minimized
@@ -49,29 +49,29 @@ EasyWallpaper.exe --minimized
 
 ---
 
-## Fonctionnement technique
+## Technical Architecture
 
-### 1. Détection des écrans et DPI
+### 1. Monitor Enumeration and DPI
 
-L'énumération des moniteurs passe par l'interface COM native `IDesktopWallpaper` (`GetMonitorDevicePathCount`, `GetMonitorDevicePathAt`, `GetMonitorRect`) afin d'obtenir les identifiants matériels et les rectangles virtuels exacts de chaque écran. Le manifeste `app.manifest` active le mode `PerMonitorV2` pour garantir un positionnement au pixel près sur des configurations multi-écrans hétérogènes.
+Displays are enumerated through the native `IDesktopWallpaper` COM interface (`GetMonitorDevicePathCount`, `GetMonitorDevicePathAt`, `GetMonitorRect`) to obtain hardware device paths and virtual-screen bounds. `app.manifest` enables `PerMonitorV2` DPI awareness for pixel-accurate placement across mixed-DPI monitor setups.
 
-### 2. Rendu derrière les icônes du bureau (Windows 11 24H2 / 26H2)
+### 2. Desktop Layer Rendering (Windows 11 24H2 / 26H2)
 
-Plutôt que de modifier le fond d'écran via `IDesktopWallpaper::SetWallpaper` ou `SystemParametersInfo` (qui peuvent être désactivés sur des sessions Windows non activées ou restreintes par stratégie), EasyWallpaper injecte ses propres fenêtres hôtes sans bordure (`WallpaperHostForm`, basées sur WinForms) dans la hiérarchie du bureau Windows :
+Instead of calling `IDesktopWallpaper::SetWallpaper` or `SystemParametersInfo` (which may be disabled on unactivated or policy-locked Windows sessions), EasyWallpaper hosts borderless WinForms windows (`WallpaperHostForm`) directly inside the Windows desktop window hierarchy:
 
-1. Envoi du message `0x052C` à `Progman` (`SendMessageTimeout`) pour initialiser les couches du bureau.
-2. Détection de la structure du compositeur :
-   - Sur Windows 10 / 11 antérieur à 24H2 : rattachement au `WorkerW` de premier niveau situé après `SHELLDLL_DefView`.
-   - Sur Windows 11 24H2 / 26H2 (*Raised Desktop*) : rattachement direct à `Progman` avec les styles Win32 `0x56010000` (`WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_TABSTOP`) et `0x08090080` (`WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_CONTROLPARENT | WS_EX_TOOLWINDOW`) + `SetLayeredWindowAttributes(..., 255, LWA_ALPHA)`.
-3. Placement dans le Z-order juste derrière `SHELLDLL_DefView` (la couche des icônes) et maintien des fenêtres `WorkerW` enfants en bas de pile (`HWND_BOTTOM`) pour éviter qu'un écran ne recouvre l'autre.
-4. Abonnement à `SystemEvents.DisplaySettingsChanged` pour ré-attacher automatiquement les fenêtres après un changement de résolution ou une sortie de veille.
+1. Sends `0x052C` to `Progman` (`SendMessageTimeout`) to ensure the desktop worker layers are initialized.
+2. Detects the active compositor layout:
+   - Windows 10 / pre-24H2 Windows 11: parents to the top-level `WorkerW` following `SHELLDLL_DefView`.
+   - Windows 11 24H2 / 26H2 (*Raised Desktop*): parents directly to `Progman` using Win32 styles `0x56010000` (`WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_TABSTOP`) and `0x08090080` (`WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_CONTROLPARENT | WS_EX_TOOLWINDOW`) along with `SetLayeredWindowAttributes(..., 255, LWA_ALPHA)`.
+3. Positions each host window right behind `SHELLDLL_DefView` (the desktop icons layer) and pushes child `WorkerW` windows to `HWND_BOTTOM` so multiple monitors never occlude one another.
+4. Listens to `SystemEvents.DisplaySettingsChanged` to re-attach host windows after resolution changes or sleep/wake cycles.
 
-### 3. Lecture des médias et flux temps réel
+### 3. Media Playback and Live Streams
 
-- **Images** : chargées en mémoire (`Bitmap`) et dessinées dans `OnPaint` avec `InterpolationMode.HighQualityBicubic`.
-- **Vidéos, flux `.m3u8` et pages web** : rendus via `Microsoft.Web.WebView2` (moteur Chromium/Edge). Les flux HLS (`.m3u8`) utilisent `hls.js` en mode faible latence avec reprise automatique sur erreur réseau/média.
-- **Recadrage (`OffsetX`, `OffsetY`)** : deux valeurs normalisées entre `0.0` et `1.0` (`0.5` par défaut) calculent le décalage en pixels pour les images GDI+ et sont converties en pourcentages CSS `object-position` (en `CultureInfo.InvariantCulture`) pour les flux HTML5/HLS.
+- **Images**: Loaded into memory (`Bitmap`) and rendered in `OnPaint` using `InterpolationMode.HighQualityBicubic`.
+- **Videos, `.m3u8` streams, and web pages**: Rendered via `Microsoft.Web.WebView2`. HLS streams (`.m3u8`) use `hls.js` in low-latency mode with automatic recovery on network or media errors.
+- **Interactive cropping (`OffsetX`, `OffsetY`)**: Normalized `[0.0, 1.0]` offsets (`0.5` centered by default) drive pixel offsets for GDI+ image rendering and CSS `object-position` percentages (formatted with `CultureInfo.InvariantCulture`) for HTML5/HLS video elements.
 
-### 4. Persistance et démarrage Windows
+### 4. Persistence and Startup
 
-La configuration de chaque écran (`MonitorId`, type de source, URL/chemin, intervalle de rafraîchissement, mode d'ajustement, `OffsetX`/`OffsetY`) est sérialisée en JSON dans `%LOCALAPPDATA%\EasyWallpaper\config.json`. L'option de démarrage automatique ajoute ou supprime une entrée `EasyWallpaper` pointant vers `"<chemin>\EasyWallpaper.exe" --minimized` dans `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+Per-monitor settings (`MonitorId`, source type, URL/path, refresh interval, fit mode, `OffsetX`/`OffsetY`) are serialized as JSON to `%LOCALAPPDATA%\EasyWallpaper\config.json`. Enabling startup writes `"<path>\EasyWallpaper.exe" --minimized` to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.

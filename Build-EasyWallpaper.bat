@@ -6,7 +6,7 @@ echo [1/2] Arret de EasyWallpaper si actif...
 taskkill /IM EasyWallpaper.exe /F >nul 2>&1
 
 echo [2/2] Compilation en .exe autonome...
-dotnet publish "%~dp0CGWallpaper.csproj" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "%~dp0dist"
+dotnet publish "%~dp0EasyWallpaper.csproj" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "%~dp0dist"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
