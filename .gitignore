@@ -1,0 +1,18 @@
+# .NET / Visual Studio
+bin/
+obj/
+dist/
+publish/
+.vs/
+*.user
+*.suo
+*.pdb
+*.cache
+*.log
+*.tmp
+
+# Rider / VS Code
+.idea/
+.vscode/
+!*.sln
+!*.csproj
