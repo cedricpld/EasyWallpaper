@@ -589,6 +589,69 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
                 }
                 else
                 {
+                    string oxStr = (ox * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                    string oyStr = (oy * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                    string injectJs = $@"(() => {{
+  const apply = () => {{
+    const v = document.querySelector('video');
+    if (!v) return false;
+    v.muted = true;
+    v.play().catch(() => {{}});
+    v.style.setProperty('position', 'fixed', 'important');
+    v.style.setProperty('top', '0', 'important');
+    v.style.setProperty('left', '0', 'important');
+    v.style.setProperty('width', '100vw', 'important');
+    v.style.setProperty('height', '100vh', 'important');
+    v.style.setProperty('max-width', 'none', 'important');
+    v.style.setProperty('max-height', 'none', 'important');
+    v.style.setProperty('object-fit', '{objectFit}', 'important');
+    v.style.setProperty('object-position', '{oxStr}% {oyStr}%', 'important');
+    v.style.setProperty('z-index', '2147483647', 'important');
+    v.style.setProperty('background', '#000', 'important');
+    v.style.setProperty('pointer-events', 'none', 'important');
+    let p = v.parentElement;
+    while (p && p !== document.documentElement) {{
+      p.style.setProperty('transform', 'none', 'important');
+      p.style.setProperty('filter', 'none', 'important');
+      p.style.setProperty('perspective', 'none', 'important');
+      p.style.setProperty('contain', 'none', 'important');
+      p.style.setProperty('overflow', 'visible', 'important');
+      p = p.parentElement;
+    }}
+    return true;
+  }};
+  if (!apply()) {{
+    const t = setInterval(() => {{ if (apply()) clearInterval(t); }}, 300);
+    setTimeout(() => clearInterval(t), 15000);
+  }}
+  if (!window.__ewPanBound) {{
+    window.__ewPanBound = true;
+    let drag=false, moved=false, sx=0, sy=0, sox={ox.ToString(System.Globalization.CultureInfo.InvariantCulture)}, soy={oy.ToString(System.Globalization.CultureInfo.InvariantCulture)};
+    let cx=sox, cy=soy;
+    document.addEventListener('mousedown', e => {{ drag=true; moved=false; sx=e.clientX; sy=e.clientY; sox=cx; soy=cy; }}, true);
+    document.addEventListener('mousemove', e => {{
+      if(!drag) return;
+      const dx=e.clientX-sx, dy=e.clientY-sy;
+      if(Math.abs(dx)>4 || Math.abs(dy)>4) moved=true;
+      if(!moved) return;
+      const w=Math.max(1, window.innerWidth), h=Math.max(1, window.innerHeight);
+      cx = Math.max(0, Math.min(1, sox - dx / w));
+      cy = Math.max(0, Math.min(1, soy - dy / h));
+      const v = document.querySelector('video');
+      if(v) v.style.setProperty('object-position', (cx*100).toFixed(1)+'% '+(cy*100).toFixed(1)+'%', 'important');
+      window.chrome.webview.postMessage(JSON.stringify({{type:'pan', ox:cx, oy:cy}}));
+    }}, true);
+    document.addEventListener('mouseup', () => {{
+      if(!drag) return;
+      drag=false;
+      if(!moved) window.chrome.webview.postMessage(JSON.stringify({{type:'click'}}));
+    }}, true);
+  }}
+}})();";
+                    wv.CoreWebView2.NavigationCompleted += async (_, _) =>
+                    {
+                        try { await wv.CoreWebView2.ExecuteScriptAsync(injectJs); } catch { }
+                    };
                     wv.CoreWebView2.Navigate(cfg.Source);
                 }
             }

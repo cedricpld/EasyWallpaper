@@ -17,6 +17,7 @@ public class WallpaperHostForm : Form
     private WebView2? _webView;
     private bool _webReady;
     private string? _pendingUrl;
+    private string? _webInjectJs;
 
     public WallpaperHostForm(MonitorInfoItem monitor)
     {
@@ -78,6 +79,7 @@ public class WallpaperHostForm : Form
     public void ShowVideo(string path, WallpaperFitMode fitMode, bool muteAudio, double offsetX = 0.5, double offsetY = 0.5)
     {
         if (!File.Exists(path)) return;
+        _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
@@ -104,11 +106,53 @@ public class WallpaperHostForm : Form
             ShowVideoUrl(url, fitMode, muteAudio, offsetX, offsetY);
             return;
         }
+        _webInjectJs = BuildVideoPageCssJs(fitMode, offsetX, offsetY);
         ShowWebContent(url, isHtml: false, muteAudio: muteAudio);
+    }
+
+    private static string BuildVideoPageCssJs(WallpaperFitMode fitMode, double offsetX, double offsetY)
+    {
+        string objectFit = MapObjectFit(fitMode);
+        string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        return $@"(() => {{
+  const apply = () => {{
+    const v = document.querySelector('video');
+    if (!v) return false;
+    v.muted = true;
+    v.play().catch(() => {{}});
+    v.style.setProperty('position', 'fixed', 'important');
+    v.style.setProperty('top', '0', 'important');
+    v.style.setProperty('left', '0', 'important');
+    v.style.setProperty('width', '100vw', 'important');
+    v.style.setProperty('height', '100vh', 'important');
+    v.style.setProperty('max-width', 'none', 'important');
+    v.style.setProperty('max-height', 'none', 'important');
+    v.style.setProperty('object-fit', '{objectFit}', 'important');
+    v.style.setProperty('object-position', '{ox}% {oy}%', 'important');
+    v.style.setProperty('z-index', '2147483647', 'important');
+    v.style.setProperty('background', '#000', 'important');
+    let p = v.parentElement;
+    while (p && p !== document.documentElement) {{
+      p.style.setProperty('transform', 'none', 'important');
+      p.style.setProperty('filter', 'none', 'important');
+      p.style.setProperty('perspective', 'none', 'important');
+      p.style.setProperty('contain', 'none', 'important');
+      p.style.setProperty('overflow', 'visible', 'important');
+      p = p.parentElement;
+    }}
+    return true;
+  }};
+  if (!apply()) {{
+    const t = setInterval(() => {{ if (apply()) clearInterval(t); }}, 300);
+    setTimeout(() => clearInterval(t), 15000);
+  }}
+}})();";
     }
 
     private void ShowVideoUrl(string url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY)
     {
+        _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
@@ -124,6 +168,7 @@ public class WallpaperHostForm : Form
 
     private void ShowHlsStream(string m3u8Url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY)
     {
+        _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
@@ -193,6 +238,13 @@ public class WallpaperHostForm : Form
                 _webView.CoreWebView2.IsMuted = muteAudio;
                 _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                _webView.CoreWebView2.NavigationCompleted += async (_, _) =>
+                {
+                    if (!string.IsNullOrEmpty(_webInjectJs) && _webView?.CoreWebView2 != null)
+                    {
+                        try { await _webView.CoreWebView2.ExecuteScriptAsync(_webInjectJs); } catch { }
+                    }
+                };
                 _webReady = true;
                 if (_pendingUrl.StartsWith("HTML:"))
                     _webView.CoreWebView2.NavigateToString(_pendingUrl.Substring(5));
