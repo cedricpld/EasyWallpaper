@@ -34,6 +34,7 @@ public class MonitorInfoItem
 public class MonitorWallpaperConfig
 {
     public string MonitorId { get; set; } = "";
+    public int MonitorIndex { get; set; } = 0;
     public WallpaperType Type { get; set; } = WallpaperType.None;
     public string Source { get; set; } = "";
     public string Selector { get; set; } = "";
@@ -45,8 +46,16 @@ public class MonitorWallpaperConfig
     public bool MuteAudio { get; set; } = true;
 }
 
+public class WallpaperProfile
+{
+    public string Name { get; set; } = "Défaut";
+    public List<MonitorWallpaperConfig> Monitors { get; set; } = new();
+}
+
 public class AppConfig
 {
+    public string ActiveProfileName { get; set; } = "Défaut";
+    public List<WallpaperProfile> Profiles { get; set; } = new();
     public List<MonitorWallpaperConfig> Monitors { get; set; } = new();
     public WallpaperFitMode GlobalFitMode { get; set; } = WallpaperFitMode.Fill;
 }

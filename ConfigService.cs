@@ -21,11 +21,25 @@ public static class ConfigService
             if (File.Exists(ConfigPath))
             {
                 string json = File.ReadAllText(ConfigPath);
-                return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+                var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+                if (cfg.Profiles.Count == 0)
+                {
+                    cfg.Profiles.Add(new WallpaperProfile
+                    {
+                        Name = string.IsNullOrWhiteSpace(cfg.ActiveProfileName) ? "Défaut" : cfg.ActiveProfileName,
+                        Monitors = cfg.Monitors ?? new()
+                    });
+                    cfg.ActiveProfileName = cfg.Profiles[0].Name;
+                }
+                return cfg;
             }
         }
         catch { }
-        return new AppConfig();
+        return new AppConfig
+        {
+            ActiveProfileName = "Défaut",
+            Profiles = [new WallpaperProfile { Name = "Défaut" }]
+        };
     }
 
     public static void Save(AppConfig cfg)
@@ -65,6 +79,28 @@ public static class ConfigService
             {
                 key.DeleteValue(AppRunName, false);
             }
+        }
+        catch { }
+    }
+
+    public static void RegisterFileAssociation()
+    {
+        try
+        {
+            string? exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath) || !exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return;
+
+            using var extKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.ewp");
+            extKey.SetValue("", "EasyWallpaper.Profile");
+
+            using var progId = Registry.CurrentUser.CreateSubKey(@"Software\Classes\EasyWallpaper.Profile");
+            progId.SetValue("", "EasyWallpaper Profile");
+
+            using var iconKey = progId.CreateSubKey("DefaultIcon");
+            iconKey.SetValue("", $"\"{exePath}\",0");
+
+            using var cmdKey = progId.CreateSubKey(@"shell\open\command");
+            cmdKey.SetValue("", $"\"{exePath}\" \"%1\"");
         }
         catch { }
     }

@@ -21,7 +21,11 @@ public partial class App : System.Windows.Application
         }
 
         bool startMinimized = e.Args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
-        var main = new MainWindow(startMinimized);
+        string? importFile = e.Args.FirstOrDefault(a =>
+            (a.EndsWith(".ewp", StringComparison.OrdinalIgnoreCase) || a.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            && System.IO.File.Exists(a));
+
+        var main = new MainWindow(startMinimized, importFile);
         MainWindow = main;
         if (!startMinimized)
         {

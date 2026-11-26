@@ -19,7 +19,7 @@ A multi-monitor desktop wallpaper manager for Windows 11. Assigns local images, 
 - **System integration**:
   - Single-file standalone executable (`EasyWallpaper.exe`) with embedded icon.
   - Persistent system tray icon with `Open`, `Launch on startup`, `Restart`, and `Quit`.
-  - Automatic configuration persistence in `%LOCALAPPDATA%\EasyWallpaper\config.json` and automatic wallpaper restoration on launch.
+  - Multi-monitor profiles: save and switch between named profiles capturing the combined setup (media sources, fit modes, crop offsets, and filters) of all screens at once, from the main window or the tray menu.
   - Built-in GitHub Releases update check (`Check for updates` in tray menu and automatic prompt on launch).
 
 ---

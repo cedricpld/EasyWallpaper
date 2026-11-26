@@ -25,12 +25,16 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _webcamTimer;
     private readonly System.Windows.Forms.NotifyIcon _trayIcon;
     private readonly System.Windows.Forms.ToolStripMenuItem _miStartup;
+    private readonly System.Windows.Forms.ToolStripMenuItem _miProfiles;
+    private AppConfig _appConfig = new();
     private List<MonitorInfoItem> _monitors = new();
     private bool _forceExit;
+    private bool _suppressProfileEvent;
 
-    public MainWindow(bool startMinimized = false)
+    public MainWindow(bool startMinimized = false, string? importFilePath = null)
     {
         InitializeComponent();
+        ConfigService.RegisterFileAssociation();
 
         System.Drawing.Icon? appIco = null;
         try
@@ -53,8 +57,11 @@ public partial class MainWindow : Window
         };
         _miStartup.CheckedChanged += (_, _) => ConfigService.SetStartupEnabled(_miStartup.Checked);
 
+        _miProfiles = new System.Windows.Forms.ToolStripMenuItem("Profils");
+
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Ouvrir", null, (_, _) => RestoreFromTray());
+        menu.Items.Add(_miProfiles);
         menu.Items.Add("Vérifier les mises à jour", null, async (_, _) => await CheckUpdatesAsync(silent: false));
         menu.Items.Add(_miStartup);
         menu.Items.Add("Redémarrer", null, (_, _) => RestartApp());
@@ -76,8 +83,13 @@ public partial class MainWindow : Window
 
         SystemEvents.DisplaySettingsChanged += SystemEvents_DisplaySettingsChanged;
 
+        _monitors = DesktopLayer.GetMonitors();
         LoadSavedConfig();
-        RefreshMonitors();
+        if (!string.IsNullOrEmpty(importFilePath) && File.Exists(importFilePath))
+        {
+            ImportProfileFromFile(importFilePath);
+        }
+        RenderMonitorCards();
 
         if (_configs.Values.Any(c => c.Type != WallpaperType.None))
         {
@@ -123,20 +135,247 @@ public partial class MainWindow : Window
 
     private void LoadSavedConfig()
     {
-        var saved = ConfigService.Load();
-        foreach (var m in saved.Monitors)
+        _appConfig = ConfigService.Load();
+        LoadProfileIntoWorkingState(_appConfig.ActiveProfileName);
+        RefreshProfileUi();
+    }
+
+    private void LoadProfileIntoWorkingState(string profileName)
+    {
+        var profile = _appConfig.Profiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase))
+                      ?? _appConfig.Profiles.FirstOrDefault();
+
+        _configs.Clear();
+        _cachedFrames.Clear();
+        _lastResolvedUrls.Clear();
+
+        if (profile != null)
         {
-            _configs[m.MonitorId] = m;
+            _appConfig.ActiveProfileName = profile.Name;
+            foreach (var m in profile.Monitors)
+            {
+                string targetId = m.MonitorId;
+                if (_monitors.Count > 0 && !_monitors.Any(x => x.MonitorId == targetId) && m.MonitorIndex > 0)
+                {
+                    var byIdx = _monitors.FirstOrDefault(x => x.Index == m.MonitorIndex);
+                    if (byIdx != null) targetId = byIdx.MonitorId;
+                }
+                var copy = CloneConfig(m);
+                copy.MonitorId = targetId;
+                _configs[targetId] = copy;
+            }
         }
+    }
+
+    private static MonitorWallpaperConfig CloneConfig(MonitorWallpaperConfig m) => new()
+    {
+        MonitorId = m.MonitorId,
+        MonitorIndex = m.MonitorIndex,
+        Type = m.Type,
+        Source = m.Source,
+        Selector = m.Selector,
+        RefreshSeconds = m.RefreshSeconds,
+        FitMode = m.FitMode,
+        OffsetX = m.OffsetX,
+        OffsetY = m.OffsetY,
+        Softness = m.Softness,
+        MuteAudio = m.MuteAudio
+    };
+
+    private WallpaperProfile BuildCurrentProfileSnapshot(string name)
+    {
+        var list = new List<MonitorWallpaperConfig>();
+        foreach (var kv in _configs)
+        {
+            var c = CloneConfig(kv.Value);
+            var mon = _monitors.FirstOrDefault(m => m.MonitorId == c.MonitorId);
+            if (mon != null) c.MonitorIndex = mon.Index;
+            list.Add(c);
+        }
+        return new WallpaperProfile { Name = name, Monitors = list };
     }
 
     private void SaveCurrentConfig()
     {
-        var cfg = new AppConfig
+        var snap = BuildCurrentProfileSnapshot(_appConfig.ActiveProfileName);
+        var profile = _appConfig.Profiles.FirstOrDefault(p => p.Name.Equals(_appConfig.ActiveProfileName, StringComparison.OrdinalIgnoreCase));
+        if (profile == null)
         {
-            Monitors = _configs.Values.ToList()
+            _appConfig.Profiles.Add(snap);
+        }
+        else
+        {
+            profile.Monitors = snap.Monitors;
+        }
+        ConfigService.Save(_appConfig);
+    }
+
+    private void RefreshProfileUi()
+    {
+        _suppressProfileEvent = true;
+        CmbProfiles.Items.Clear();
+        _miProfiles.DropDownItems.Clear();
+
+        int activeIdx = 0;
+        for (int i = 0; i < _appConfig.Profiles.Count; i++)
+        {
+            var p = _appConfig.Profiles[i];
+            CmbProfiles.Items.Add(p.Name);
+            bool isActive = p.Name.Equals(_appConfig.ActiveProfileName, StringComparison.OrdinalIgnoreCase);
+            if (isActive) activeIdx = i;
+
+            var mi = new System.Windows.Forms.ToolStripMenuItem(p.Name) { Checked = isActive };
+            string targetName = p.Name;
+            mi.Click += (_, _) => Dispatcher.Invoke(() => SwitchProfile(targetName));
+            _miProfiles.DropDownItems.Add(mi);
+        }
+        if (CmbProfiles.Items.Count > 0) CmbProfiles.SelectedIndex = activeIdx;
+        BtnDeleteProfile.IsEnabled = _appConfig.Profiles.Count > 1;
+        _suppressProfileEvent = false;
+    }
+
+    private void SwitchProfile(string profileName)
+    {
+        if (profileName.Equals(_appConfig.ActiveProfileName, StringComparison.OrdinalIgnoreCase)) return;
+
+        LoadProfileIntoWorkingState(profileName);
+        RefreshProfileUi();
+        RenderMonitorCards();
+        ApplyAllWallpapers();
+        SetStatus($"Profil « {profileName} » activé", isSuccess: true);
+    }
+
+    private void CmbProfiles_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressProfileEvent) return;
+        if (CmbProfiles.SelectedItem is string name)
+        {
+            SwitchProfile(name);
+        }
+    }
+
+    private void BtnNewProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ProfileDialog($"Profil {_appConfig.Profiles.Count + 1}") { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        string name = dlg.ProfileName;
+        var existing = _appConfig.Profiles.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.Monitors = _configs.Values.Select(CloneConfig).ToList();
+        }
+        else
+        {
+            _appConfig.Profiles.Add(new WallpaperProfile
+            {
+                Name = name,
+                Monitors = _configs.Values.Select(CloneConfig).ToList()
+            });
+        }
+        _appConfig.ActiveProfileName = name;
+        ConfigService.Save(_appConfig);
+        RefreshProfileUi();
+        SetStatus($"Profil « {name} » enregistré", isSuccess: true);
+    }
+
+    private void BtnDeleteProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_appConfig.Profiles.Count <= 1) return;
+        string current = _appConfig.ActiveProfileName;
+        _appConfig.Profiles.RemoveAll(p => p.Name.Equals(current, StringComparison.OrdinalIgnoreCase));
+        string next = _appConfig.Profiles[0].Name;
+        LoadProfileIntoWorkingState(next);
+        ConfigService.Save(_appConfig);
+        RefreshProfileUi();
+        RenderMonitorCards();
+        ApplyAllWallpapers();
+        SetStatus($"Profil « {current} » supprimé");
+    }
+
+    private void BtnExportProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var snap = BuildCurrentProfileSnapshot(_appConfig.ActiveProfileName);
+        var sfd = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Exporter le profil",
+            Filter = "Profil EasyWallpaper (*.ewp)|*.ewp|JSON (*.json)|*.json",
+            FileName = $"{SanitizeFileName(snap.Name)}.ewp"
         };
-        ConfigService.Save(cfg);
+        if (sfd.ShowDialog(this) != true) return;
+
+        string json = System.Text.Json.JsonSerializer.Serialize(snap, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(sfd.FileName, json);
+        SetStatus($"Profil « {snap.Name} » exporté", isSuccess: true);
+    }
+
+    private void BtnImportProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var ofd = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Importer un profil",
+            Filter = "Profil EasyWallpaper (*.ewp;*.json)|*.ewp;*.json|Tous (*.*)|*.*"
+        };
+        if (ofd.ShowDialog(this) != true) return;
+        ImportProfileFromFile(ofd.FileName);
+    }
+
+    private void ImportProfileFromFile(string filePath)
+    {
+        try
+        {
+            string json = File.ReadAllText(filePath);
+            var imported = System.Text.Json.JsonSerializer.Deserialize<WallpaperProfile>(json);
+            if (imported == null || imported.Monitors == null)
+            {
+                SetStatus("Fichier de profil invalide.", isError: true);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(imported.Name))
+                imported.Name = Path.GetFileNameWithoutExtension(filePath);
+
+            string uniqueName = imported.Name;
+            int n = 2;
+            while (_appConfig.Profiles.Any(p => p.Name.Equals(uniqueName, StringComparison.OrdinalIgnoreCase)))
+            {
+                uniqueName = $"{imported.Name} ({n++})";
+            }
+            imported.Name = uniqueName;
+            _appConfig.Profiles.Add(imported);
+            ConfigService.Save(_appConfig);
+            SwitchProfile(uniqueName);
+            SetStatus($"Profil « {uniqueName} » importé", isSuccess: true);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Import : {ex.Message}", isError: true);
+        }
+    }
+
+    private void BtnShareProfile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var snap = BuildCurrentProfileSnapshot(_appConfig.ActiveProfileName);
+            string json = System.Text.Json.JsonSerializer.Serialize(snap, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            string shareDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyWallpaper", "share");
+            Directory.CreateDirectory(shareDir);
+            string sharePath = Path.Combine(shareDir, $"{SanitizeFileName(snap.Name)}.ewp");
+            File.WriteAllText(sharePath, json);
+
+            WindowsShareHelper.ShareProfile(this, snap.Name, sharePath, json);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Partage : {ex.Message}", isError: true);
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (char c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+        return string.IsNullOrWhiteSpace(name) ? "profil" : name;
     }
 
     private void SetStatus(string text, bool isSuccess = false, bool isError = false)
@@ -799,7 +1038,14 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
         foreach (var mon in _monitors)
         {
             if (!_configs.TryGetValue(mon.MonitorId, out var cfg) || cfg.Type == WallpaperType.None)
+            {
+                if (_hosts.TryGetValue(mon.MonitorId, out var oldHost))
+                {
+                    oldHost.Close();
+                    _hosts.Remove(mon.MonitorId);
+                }
                 continue;
+            }
 
             var host = GetOrCreateHost(mon);
 
