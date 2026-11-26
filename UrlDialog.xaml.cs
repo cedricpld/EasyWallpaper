@@ -10,6 +10,7 @@ public partial class UrlDialog : Window
     public string ResultUrl { get; private set; } = "";
     public string ResultSelector { get; private set; } = "";
     public int RefreshSeconds { get; private set; } = 60;
+    public double Softness { get; private set; } = 0.0;
     public bool MuteAudio { get; private set; } = true;
     public bool Cleared { get; private set; }
 
@@ -20,6 +21,7 @@ public partial class UrlDialog : Window
         {
             TxtUrl.Text = existing.Source;
             TxtSelector.Text = existing.Selector;
+            SldSoftness.Value = Math.Clamp(existing.Softness, 0.0, 3.0);
             ChkMute.IsChecked = existing.MuteAudio;
             if (existing.Type == WallpaperType.WebcamSnapshot)
             {
@@ -87,7 +89,14 @@ public partial class UrlDialog : Window
             ResultUrl = NormalizeWebUrl(url);
             MuteAudio = ChkMute.IsChecked == true;
         }
+        Softness = Math.Round(SldSoftness.Value, 2);
         DialogResult = true;
+    }
+
+    private void SldSoftness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (LblSoftnessVal != null)
+            LblSoftnessVal.Text = $"{e.NewValue:F1} px";
     }
 
     private static string NormalizeWebUrl(string url)

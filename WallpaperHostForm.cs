@@ -57,7 +57,7 @@ public class WallpaperHostForm : Form
         Attach();
     }
 
-    public void ShowImage(string path, WallpaperFitMode fitMode, double offsetX = 0.5, double offsetY = 0.5)
+    public void ShowImage(string path, WallpaperFitMode fitMode, double offsetX = 0.5, double offsetY = 0.5, double softness = 0.0)
     {
         if (!File.Exists(path)) return;
         HideWebView();
@@ -66,6 +66,11 @@ public class WallpaperHostForm : Form
         using var ms = new MemoryStream(bytes);
         using var tmp = Image.FromStream(ms);
         var bmp = new Bitmap(tmp);
+
+        if (softness > 0.05)
+        {
+            ApplyFastSoften(bmp, softness);
+        }
 
         var old = _image;
         _image = bmp;
@@ -76,45 +81,101 @@ public class WallpaperHostForm : Form
         Invalidate();
     }
 
-    public void ShowVideo(string path, WallpaperFitMode fitMode, bool muteAudio, double offsetX = 0.5, double offsetY = 0.5)
+    private static unsafe void ApplyFastSoften(Bitmap bmp, double softness)
+    {
+        int passes = softness >= 1.8 ? 2 : 1;
+        int w = bmp.Width;
+        int h = bmp.Height;
+        if (w < 3 || h < 3) return;
+
+        var rect = new Rectangle(0, 0, w, h);
+        var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            int stride = data.Stride;
+            int total = stride * h;
+            byte[] src = new byte[total];
+            byte[] dst = new byte[total];
+            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, src, 0, total);
+
+            double blend = Math.Clamp(softness / 3.0, 0.15, 1.0);
+            for (int p = 0; p < passes; p++)
+            {
+                Buffer.BlockCopy(src, 0, dst, 0, total);
+                for (int y = 1; y < h - 1; y++)
+                {
+                    int row = y * stride;
+                    for (int x = 1; x < w - 1; x++)
+                    {
+                        int idx = row + x * 4;
+                        for (int c = 0; c < 3; c++)
+                        {
+                            int avg = (src[idx - stride - 4 + c] + src[idx - stride + c] + src[idx - stride + 4 + c] +
+                                       src[idx - 4 + c]          + src[idx + c]          + src[idx + 4 + c] +
+                                       src[idx + stride - 4 + c] + src[idx + stride + c] + src[idx + stride + 4 + c]) / 9;
+                            dst[idx + c] = (byte)(src[idx + c] * (1.0 - blend) + avg * blend);
+                        }
+                    }
+                }
+                Buffer.BlockCopy(dst, 0, src, 0, total);
+            }
+            System.Runtime.InteropServices.Marshal.Copy(src, 0, data.Scan0, total);
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+    }
+
+    private static string BuildCssFilter(double softness)
+    {
+        if (softness <= 0.05) return "none";
+        string blur = softness.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        string contrast = (1.0 - softness * 0.025).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        return $"blur({blur}px) contrast({contrast})";
+    }
+
+    public void ShowVideo(string path, WallpaperFitMode fitMode, bool muteAudio, double offsetX = 0.5, double offsetY = 0.5, double softness = 0.0)
     {
         if (!File.Exists(path)) return;
         _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string cssFilter = BuildCssFilter(softness);
         string fileUrl = new Uri(path).AbsoluteUri;
         string mutedAttr = muteAudio ? "muted" : "";
         string html = $@"<!DOCTYPE html>
 <html><body style='margin:0;padding:0;overflow:hidden;background:#000;'>
-<video autoplay loop {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;display:block;'>
+<video autoplay loop {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;filter:{cssFilter};display:block;'>
   <source src='{fileUrl}'/>
 </video></body></html>";
         ShowWebContent(html, isHtml: true, muteAudio: muteAudio);
     }
 
-    public void ShowWebPage(string url, bool muteAudio, WallpaperFitMode fitMode = WallpaperFitMode.Fill, double offsetX = 0.5, double offsetY = 0.5)
+    public void ShowWebPage(string url, bool muteAudio, WallpaperFitMode fitMode = WallpaperFitMode.Fill, double offsetX = 0.5, double offsetY = 0.5, double softness = 0.0)
     {
         string pathOnly = url.Split('?')[0].ToLowerInvariant();
         if (pathOnly.EndsWith(".m3u8"))
         {
-            ShowHlsStream(url, fitMode, muteAudio, offsetX, offsetY);
+            ShowHlsStream(url, fitMode, muteAudio, offsetX, offsetY, softness);
             return;
         }
         if (pathOnly.EndsWith(".mp4") || pathOnly.EndsWith(".webm"))
         {
-            ShowVideoUrl(url, fitMode, muteAudio, offsetX, offsetY);
+            ShowVideoUrl(url, fitMode, muteAudio, offsetX, offsetY, softness);
             return;
         }
-        _webInjectJs = BuildVideoPageCssJs(fitMode, offsetX, offsetY);
+        _webInjectJs = BuildVideoPageCssJs(fitMode, offsetX, offsetY, softness);
         ShowWebContent(url, isHtml: false, muteAudio: muteAudio);
     }
 
-    private static string BuildVideoPageCssJs(WallpaperFitMode fitMode, double offsetX, double offsetY)
+    private static string BuildVideoPageCssJs(WallpaperFitMode fitMode, double offsetX, double offsetY, double softness)
     {
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string cssFilter = BuildCssFilter(softness);
         return $@"(() => {{
   const apply = () => {{
     const v = document.querySelector('video');
@@ -130,6 +191,7 @@ public class WallpaperHostForm : Form
     v.style.setProperty('max-height', 'none', 'important');
     v.style.setProperty('object-fit', '{objectFit}', 'important');
     v.style.setProperty('object-position', '{ox}% {oy}%', 'important');
+    v.style.setProperty('filter', '{cssFilter}', 'important');
     v.style.setProperty('z-index', '2147483647', 'important');
     v.style.setProperty('background', '#000', 'important');
     let p = v.parentElement;
@@ -150,33 +212,35 @@ public class WallpaperHostForm : Form
 }})();";
     }
 
-    private void ShowVideoUrl(string url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY)
+    private void ShowVideoUrl(string url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY, double softness)
     {
         _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string cssFilter = BuildCssFilter(softness);
         string mutedAttr = muteAudio ? "muted" : "";
         string safeUrl = System.Net.WebUtility.HtmlEncode(url);
         string html = $@"<!DOCTYPE html>
 <html><body style='margin:0;padding:0;overflow:hidden;background:#000;'>
-<video autoplay loop {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;display:block;'>
+<video autoplay loop {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;filter:{cssFilter};display:block;'>
   <source src='{safeUrl}'/>
 </video></body></html>";
         ShowWebContent(html, isHtml: true, muteAudio: muteAudio);
     }
 
-    private void ShowHlsStream(string m3u8Url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY)
+    private void ShowHlsStream(string m3u8Url, WallpaperFitMode fitMode, bool muteAudio, double offsetX, double offsetY, double softness)
     {
         _webInjectJs = null;
         string objectFit = MapObjectFit(fitMode);
         string ox = (Math.Clamp(offsetX, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
         string oy = (Math.Clamp(offsetY, 0.0, 1.0) * 100.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+        string cssFilter = BuildCssFilter(softness);
         string mutedAttr = muteAudio ? "muted" : "";
         string jsUrl = System.Text.Json.JsonSerializer.Serialize(m3u8Url);
         string html = $@"<!DOCTYPE html>
 <html><body style='margin:0;padding:0;overflow:hidden;background:#000;'>
-<video id='v' autoplay {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;display:block;'></video>
+<video id='v' autoplay {mutedAttr} playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{ox}% {oy}%;filter:{cssFilter};display:block;'></video>
 <script src='https://cdn.jsdelivr.net/npm/hls.js@1'></script>
 <script>
   const v = document.getElementById('v');

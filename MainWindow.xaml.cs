@@ -55,6 +55,7 @@ public partial class MainWindow : Window
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Ouvrir", null, (_, _) => RestoreFromTray());
+        menu.Items.Add("Vérifier les mises à jour", null, async (_, _) => await CheckUpdatesAsync(silent: false));
         menu.Items.Add(_miStartup);
         menu.Items.Add("Redémarrer", null, (_, _) => RestartApp());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
@@ -81,6 +82,42 @@ public partial class MainWindow : Window
         if (_configs.Values.Any(c => c.Type != WallpaperType.None))
         {
             ApplyAllWallpapers();
+        }
+
+        _ = CheckUpdatesAsync(silent: true);
+    }
+
+    private async Task CheckUpdatesAsync(bool silent)
+    {
+        try
+        {
+            if (silent) await Task.Delay(2500);
+            var update = await UpdateService.CheckForUpdateAsync();
+            if (update == null)
+            {
+                if (!silent)
+                {
+                    SetStatus($"Vous utilisez déjà la dernière version (v{UpdateService.GetCurrentVersion()}).", isSuccess: true);
+                }
+                return;
+            }
+
+            var dlg = new UpdateDialog(UpdateService.GetCurrentVersion(), update.TagName);
+            if (IsVisible) dlg.Owner = this;
+
+            if (dlg.ShowDialog() == true)
+            {
+                SetStatus($"Téléchargement de {update.TagName}...");
+                await UpdateService.DownloadAndApplyUpdateAsync(update, relaunchMinimized: !IsVisible);
+                ExitApp();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!silent)
+            {
+                SetStatus($"Mise à jour : {ex.Message}", isError: true);
+            }
         }
     }
 
@@ -278,7 +315,8 @@ public partial class MainWindow : Window
                         Source = bmp,
                         Width = dw,
                         Height = dh,
-                        Stretch = Stretch.Fill
+                        Stretch = Stretch.Fill,
+                        Effect = cfg.Softness > 0.05 ? new System.Windows.Media.Effects.BlurEffect { Radius = cfg.Softness * 1.5 } : null
                     };
                     Canvas.SetLeft(img, dx);
                     Canvas.SetTop(img, dy);
@@ -551,11 +589,15 @@ document.addEventListener('mouseup', () => {{
 }});";
             panScript = panScript.Replace("Math.Abs", "Math.abs");
 
+            string cssFilter = cfg.Softness > 0.05
+                ? $"blur({cfg.Softness.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}px) contrast({(1.0 - cfg.Softness * 0.025).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)})"
+                : "none";
+
             if (cfg.Type == WallpaperType.Video && File.Exists(cfg.Source))
             {
                 string fileUrl = new Uri(cfg.Source).AbsoluteUri;
                 string html = $@"<!DOCTYPE html><html><body style='margin:0;padding:0;overflow:hidden;background:#0a0a0b;cursor:move;'>
-<video id='v' autoplay loop muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;display:block;pointer-events:none;'><source src='{fileUrl}'/></video>
+<video id='v' autoplay loop muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;filter:{cssFilter};display:block;pointer-events:none;'><source src='{fileUrl}'/></video>
 <script>{panScript}</script></body></html>";
                 wv.CoreWebView2.NavigateToString(html);
             }
@@ -566,7 +608,7 @@ document.addEventListener('mouseup', () => {{
                 {
                     string jsUrl = System.Text.Json.JsonSerializer.Serialize(cfg.Source);
                     string html = $@"<!DOCTYPE html><html><body style='margin:0;padding:0;overflow:hidden;background:#0a0a0b;cursor:move;'>
-<video id='v' autoplay muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;display:block;pointer-events:none;'></video>
+<video id='v' autoplay muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;filter:{cssFilter};display:block;pointer-events:none;'></video>
 <script src='https://cdn.jsdelivr.net/npm/hls.js@1'></script>
 <script>
 const src={jsUrl};
@@ -583,7 +625,7 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
                 {
                     string safeUrl = System.Net.WebUtility.HtmlEncode(cfg.Source);
                     string html = $@"<!DOCTYPE html><html><body style='margin:0;padding:0;overflow:hidden;background:#0a0a0b;cursor:move;'>
-<video id='v' autoplay loop muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;display:block;pointer-events:none;'><source src='{safeUrl}'/></video>
+<video id='v' autoplay loop muted playsinline style='width:100vw;height:100vh;object-fit:{objectFit};object-position:{(ox*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}% {(oy*100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%;filter:{cssFilter};display:block;pointer-events:none;'><source src='{safeUrl}'/></video>
 <script>{panScript}</script></body></html>";
                     wv.CoreWebView2.NavigateToString(html);
                 }
@@ -606,6 +648,7 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
     v.style.setProperty('max-height', 'none', 'important');
     v.style.setProperty('object-fit', '{objectFit}', 'important');
     v.style.setProperty('object-position', '{oxStr}% {oyStr}%', 'important');
+    v.style.setProperty('filter', '{cssFilter}', 'important');
     v.style.setProperty('z-index', '2147483647', 'important');
     v.style.setProperty('background', '#000', 'important');
     v.style.setProperty('pointer-events', 'none', 'important');
@@ -737,6 +780,7 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
                     Source = dlg.ResultUrl,
                     Selector = dlg.ResultSelector,
                     RefreshSeconds = dlg.RefreshSeconds,
+                    Softness = dlg.Softness,
                     FitMode = existingFit,
                     MuteAudio = dlg.MuteAudio
                 };
@@ -761,17 +805,17 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
 
             if (cfg.Type == WallpaperType.Image)
             {
-                host.ShowImage(cfg.Source, cfg.FitMode, cfg.OffsetX, cfg.OffsetY);
+                host.ShowImage(cfg.Source, cfg.FitMode, cfg.OffsetX, cfg.OffsetY, cfg.Softness);
                 count++;
             }
             else if (cfg.Type == WallpaperType.Video)
             {
-                host.ShowVideo(cfg.Source, cfg.FitMode, cfg.MuteAudio, cfg.OffsetX, cfg.OffsetY);
+                host.ShowVideo(cfg.Source, cfg.FitMode, cfg.MuteAudio, cfg.OffsetX, cfg.OffsetY, cfg.Softness);
                 count++;
             }
             else if (cfg.Type == WallpaperType.WebPage)
             {
-                host.ShowWebPage(cfg.Source, cfg.MuteAudio, cfg.FitMode, cfg.OffsetX, cfg.OffsetY);
+                host.ShowWebPage(cfg.Source, cfg.MuteAudio, cfg.FitMode, cfg.OffsetX, cfg.OffsetY, cfg.Softness);
                 count++;
             }
             else if (cfg.Type == WallpaperType.WebcamSnapshot || cfg.Type == WallpaperType.WebImage)
@@ -849,7 +893,7 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
             if (_hosts.ContainsKey(mon.MonitorId))
             {
                 var host = GetOrCreateHost(mon);
-                host.ShowImage(dest, cfg.FitMode, cfg.OffsetX, cfg.OffsetY);
+                host.ShowImage(dest, cfg.FitMode, cfg.OffsetX, cfg.OffsetY, cfg.Softness);
                 SetStatus($"Webcam mise à jour à {DateTime.Now:HH:mm:ss}", isSuccess: true);
             }
             RenderMonitorCards();

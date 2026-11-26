@@ -41,6 +41,7 @@ public class MonitorWallpaperConfig
     public WallpaperFitMode FitMode { get; set; } = WallpaperFitMode.Fill;
     public double OffsetX { get; set; } = 0.5;
     public double OffsetY { get; set; } = 0.5;
+    public double Softness { get; set; } = 0.0;
     public bool MuteAudio { get; set; } = true;
 }
 

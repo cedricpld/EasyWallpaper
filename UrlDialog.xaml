@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -49,9 +50,20 @@
 
         <CheckBox x:Name="ChkMute" Grid.Row="5" Content="Couper le son" IsChecked="True" Foreground="#A1A1AA" VerticalAlignment="Center"/>
 
-        <TextBlock Grid.Row="6" Text="En mode « Image d'un site », l'outil vérifie la page périodiquement et ne met à jour le fond d'écran que lorsqu'une nouvelle image est publiée." TextWrapping="Wrap" FontSize="11.5" Foreground="#71717A" VerticalAlignment="Top" Margin="0,6,0,6"/>
+        <Grid Grid.Row="6" Margin="0,8,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Adoucissement (anti-sharpen) :" VerticalAlignment="Center" Foreground="#A1A1AA" Margin="0,0,10,0"/>
+            <Slider x:Name="SldSoftness" Grid.Column="1" Minimum="0" Maximum="3" Value="0" TickFrequency="0.1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="SldSoftness_ValueChanged"/>
+            <TextBlock x:Name="LblSoftnessVal" Grid.Column="2" Text="0.0 px" Foreground="#E4E4E7" Width="46" TextAlignment="Right" VerticalAlignment="Center"/>
+        </Grid>
 
-        <Grid Grid.Row="7" Margin="0,10,0,0">
+        <TextBlock Grid.Row="7" Text="En mode « Image d'un site », l'outil vérifie la page périodiquement et ne met à jour le fond d'écran que lorsqu'une nouvelle image est publiée." TextWrapping="Wrap" FontSize="11.5" Foreground="#71717A" VerticalAlignment="Top" Margin="0,6,0,6"/>
+
+        <Grid Grid.Row="8" Margin="0,10,0,0">
             <Button x:Name="BtnDisable" Style="{StaticResource MonoSecondaryButton}" Content="Supprimer" Foreground="#F87171" HorizontalAlignment="Left" Click="BtnDisable_Click"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Style="{StaticResource MonoSecondaryButton}" Content="Annuler" Margin="0,0,8,0" IsCancel="True"/>
