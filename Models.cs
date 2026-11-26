@@ -6,7 +6,8 @@ public enum WallpaperType
     Image,
     Video,
     WebcamSnapshot,
-    WebPage
+    WebPage,
+    WebImage
 }
 
 public enum WallpaperFitMode
@@ -35,6 +36,7 @@ public class MonitorWallpaperConfig
     public string MonitorId { get; set; } = "";
     public WallpaperType Type { get; set; } = WallpaperType.None;
     public string Source { get; set; } = "";
+    public string Selector { get; set; } = "";
     public int RefreshSeconds { get; set; } = 10;
     public WallpaperFitMode FitMode { get; set; } = WallpaperFitMode.Fill;
     public double OffsetX { get; set; } = 0.5;

@@ -8,20 +8,29 @@ public partial class UrlDialog : Window
 {
     public WallpaperType SelectedType { get; private set; }
     public string ResultUrl { get; private set; } = "";
-    public int RefreshSeconds { get; private set; } = 10;
+    public string ResultSelector { get; private set; } = "";
+    public int RefreshSeconds { get; private set; } = 60;
     public bool MuteAudio { get; private set; } = true;
     public bool Cleared { get; private set; }
 
     public UrlDialog(MonitorWallpaperConfig? existing)
     {
         InitializeComponent();
-        if (existing != null && (existing.Type == WallpaperType.WebPage || existing.Type == WallpaperType.WebcamSnapshot))
+        if (existing != null && (existing.Type == WallpaperType.WebPage || existing.Type == WallpaperType.WebcamSnapshot || existing.Type == WallpaperType.WebImage))
         {
             TxtUrl.Text = existing.Source;
+            TxtSelector.Text = existing.Selector;
             ChkMute.IsChecked = existing.MuteAudio;
             if (existing.Type == WallpaperType.WebcamSnapshot)
             {
                 RbSnapshot.IsChecked = true;
+            }
+            else if (existing.Type == WallpaperType.WebImage)
+            {
+                RbWebImage.IsChecked = true;
+            }
+            if (existing.Type == WallpaperType.WebcamSnapshot || existing.Type == WallpaperType.WebImage)
+            {
                 foreach (ComboBoxItem item in CmbInterval.Items)
                 {
                     if (int.TryParse(item.Tag?.ToString(), out int sec) && sec == existing.RefreshSeconds)
@@ -40,10 +49,12 @@ public partial class UrlDialog : Window
 
     private void Mode_Changed(object sender, RoutedEventArgs e)
     {
-        if (PanelRefresh == null || ChkMute == null) return;
+        if (PanelRefresh == null || ChkMute == null || PanelSelector == null) return;
         bool isSnap = RbSnapshot.IsChecked == true;
-        PanelRefresh.Visibility = isSnap ? Visibility.Visible : Visibility.Collapsed;
-        ChkMute.Visibility = isSnap ? Visibility.Collapsed : Visibility.Visible;
+        bool isWebImg = RbWebImage.IsChecked == true;
+        PanelSelector.Visibility = isWebImg ? Visibility.Visible : Visibility.Collapsed;
+        PanelRefresh.Visibility = (isSnap || isWebImg) ? Visibility.Visible : Visibility.Collapsed;
+        ChkMute.Visibility = (!isSnap && !isWebImg) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BtnDisable_Click(object sender, RoutedEventArgs e)
@@ -62,10 +73,11 @@ public partial class UrlDialog : Window
             return;
         }
 
-        if (RbSnapshot.IsChecked == true)
+        if (RbSnapshot.IsChecked == true || RbWebImage.IsChecked == true)
         {
-            SelectedType = WallpaperType.WebcamSnapshot;
+            SelectedType = RbWebImage.IsChecked == true ? WallpaperType.WebImage : WallpaperType.WebcamSnapshot;
             ResultUrl = url;
+            ResultSelector = TxtSelector.Text.Trim();
             if (CmbInterval.SelectedItem is ComboBoxItem cbi && int.TryParse(cbi.Tag?.ToString(), out int sec))
                 RefreshSeconds = sec;
         }

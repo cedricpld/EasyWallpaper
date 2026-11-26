@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, MonitorWallpaperConfig> _configs = new();
     private readonly Dictionary<string, WallpaperHostForm> _hosts = new();
     private readonly Dictionary<string, string> _cachedFrames = new();
+    private readonly Dictionary<string, string> _lastResolvedUrls = new();
     private readonly Dictionary<string, DateTime> _lastFetch = new();
     private readonly Dictionary<string, bool> _toggleFile = new();
     private readonly HashSet<string> _inFlight = new();
@@ -199,7 +200,7 @@ public partial class MainWindow : Window
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(36) });
 
             // Top bar
-            bool isLive = cfg.Type == WallpaperType.WebcamSnapshot || cfg.Type == WallpaperType.WebPage;
+            bool isLive = cfg.Type == WallpaperType.WebcamSnapshot || cfg.Type == WallpaperType.WebPage || cfg.Type == WallpaperType.WebImage;
             var topBar = new Border
             {
                 Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 20)),
@@ -231,7 +232,8 @@ public partial class MainWindow : Window
             string? imageToPreview = null;
             if (cfg.Type == WallpaperType.Image && File.Exists(cfg.Source))
                 imageToPreview = cfg.Source;
-            else if (cfg.Type == WallpaperType.WebcamSnapshot && _cachedFrames.TryGetValue(mon.MonitorId, out var cf) && File.Exists(cf))
+            else if ((cfg.Type == WallpaperType.WebcamSnapshot || cfg.Type == WallpaperType.WebImage) &&
+                     _cachedFrames.TryGetValue(mon.MonitorId, out var cf) && File.Exists(cf))
                 imageToPreview = cf;
 
             if (imageToPreview != null)
@@ -670,11 +672,13 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
                     MonitorId = mon.MonitorId,
                     Type = dlg.SelectedType,
                     Source = dlg.ResultUrl,
+                    Selector = dlg.ResultSelector,
                     RefreshSeconds = dlg.RefreshSeconds,
                     FitMode = existingFit,
                     MuteAudio = dlg.MuteAudio
                 };
                 _lastFetch[mon.MonitorId] = DateTime.MinValue;
+                _lastResolvedUrls.Remove(mon.MonitorId);
                 SetStatus("Source configurée — cliquez sur Appliquer.");
             }
             RenderMonitorCards();
@@ -707,9 +711,10 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
                 host.ShowWebPage(cfg.Source, cfg.MuteAudio, cfg.FitMode, cfg.OffsetX, cfg.OffsetY);
                 count++;
             }
-            else if (cfg.Type == WallpaperType.WebcamSnapshot)
+            else if (cfg.Type == WallpaperType.WebcamSnapshot || cfg.Type == WallpaperType.WebImage)
             {
                 _lastFetch[mon.MonitorId] = DateTime.MinValue;
+                _lastResolvedUrls.Remove(mon.MonitorId);
                 _ = FetchAndShowWebcamAsync(mon, cfg);
                 count++;
             }
@@ -740,7 +745,8 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
         var now = DateTime.UtcNow;
         foreach (var mon in _monitors)
         {
-            if (!_configs.TryGetValue(mon.MonitorId, out var cfg) || cfg.Type != WallpaperType.WebcamSnapshot)
+            if (!_configs.TryGetValue(mon.MonitorId, out var cfg) ||
+                (cfg.Type != WallpaperType.WebcamSnapshot && cfg.Type != WallpaperType.WebImage))
                 continue;
             if (!_hosts.ContainsKey(mon.MonitorId))
                 continue;
@@ -764,7 +770,18 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
             string cacheDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyWallpaper", "cache");
             string dest = Path.Combine(cacheDir, $"cam_{mon.Index}_{(toggle ? "a" : "b")}.jpg");
 
-            await WebcamFetcher.FetchFrameAsync(cfg.Source, dest);
+            if (cfg.Type == WallpaperType.WebImage)
+            {
+                _lastResolvedUrls.TryGetValue(mon.MonitorId, out var prevUrl);
+                var (changed, resolvedUrl) = await WebcamFetcher.FetchWebImageAsync(cfg.Source, cfg.Selector, prevUrl, dest);
+                _lastResolvedUrls[mon.MonitorId] = resolvedUrl;
+                if (!changed) return;
+            }
+            else
+            {
+                await WebcamFetcher.FetchFrameAsync(cfg.Source, dest);
+            }
+
             _cachedFrames[mon.MonitorId] = dest;
             if (_hosts.ContainsKey(mon.MonitorId))
             {

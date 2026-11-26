@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Source en direct"
-        Width="520" Height="310"
+        Width="580" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#0B0B0C"
@@ -15,36 +15,43 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Text="Type de source" FontSize="12.5" FontWeight="SemiBold" Foreground="#E4E4E7" Margin="0,0,0,8"/>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
-            <RadioButton x:Name="RbWeb" Content="Flux Live (.m3u8) / Page Web / YouTube" IsChecked="True" Foreground="#FAFAFA" Margin="0,0,20,0" Checked="Mode_Changed"/>
-            <RadioButton x:Name="RbSnapshot" Content="Image Webcam (JPG/MJPEG)" Foreground="#FAFAFA" Checked="Mode_Changed"/>
-        </StackPanel>
+        <WrapPanel Grid.Row="1" Margin="0,0,0,14">
+            <RadioButton x:Name="RbWeb" Content="Flux Live (.m3u8) / Web" IsChecked="True" Foreground="#FAFAFA" Margin="0,0,18,6" Checked="Mode_Changed"/>
+            <RadioButton x:Name="RbSnapshot" Content="Image directe (JPG / MJPEG)" Foreground="#FAFAFA" Margin="0,0,18,6" Checked="Mode_Changed"/>
+            <RadioButton x:Name="RbWebImage" Content="Image d'un site (HTML)" Foreground="#FAFAFA" Margin="0,0,0,6" Checked="Mode_Changed"/>
+        </WrapPanel>
 
         <TextBlock Grid.Row="2" Text="URL (https://...)" FontSize="12.5" FontWeight="SemiBold" Foreground="#E4E4E7" Margin="0,0,0,6"/>
-        <TextBox x:Name="TxtUrl" Grid.Row="3" Padding="10,7" Background="#18181B" Foreground="#FAFAFA" BorderBrush="#2E2E32" BorderThickness="1" CaretBrush="#FAFAFA" Margin="0,0,0,14"/>
+        <TextBox x:Name="TxtUrl" Grid.Row="3" Padding="10,7" Background="#18181B" Foreground="#FAFAFA" BorderBrush="#2E2E32" BorderThickness="1" CaretBrush="#FAFAFA" Margin="0,0,0,12"/>
 
-        <StackPanel x:Name="PanelRefresh" Grid.Row="4" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,0,10">
-            <TextBlock Text="Rafraîchissement :" VerticalAlignment="Center" Foreground="#8E8E93" Margin="0,0,10,0"/>
-            <ComboBox x:Name="CmbInterval" Style="{StaticResource MonoComboBox}" Width="145" SelectedIndex="1">
-                <ComboBoxItem Tag="5" Content="5 secondes"/>
+        <StackPanel x:Name="PanelSelector" Grid.Row="4" Visibility="Collapsed" Margin="0,0,0,12">
+            <TextBlock Text="Balise / Sélecteur HTML ou Regex (optionnel — vide = auto Skaping 2160p / og:image)" FontSize="12" Foreground="#A1A1AA" Margin="0,0,0,5"/>
+            <TextBox x:Name="TxtSelector" Padding="10,7" Background="#18181B" Foreground="#FAFAFA" BorderBrush="#2E2E32" BorderThickness="1" CaretBrush="#FAFAFA"/>
+        </StackPanel>
+
+        <StackPanel x:Name="PanelRefresh" Grid.Row="5" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,0,10">
+            <TextBlock Text="Vérification :" VerticalAlignment="Center" Foreground="#8E8E93" Margin="0,0,10,0"/>
+            <ComboBox x:Name="CmbInterval" Style="{StaticResource MonoComboBox}" Width="145" SelectedIndex="2">
                 <ComboBoxItem Tag="10" Content="10 secondes"/>
-                <ComboBoxItem Tag="15" Content="15 secondes"/>
                 <ComboBoxItem Tag="30" Content="30 secondes"/>
                 <ComboBoxItem Tag="60" Content="1 minute"/>
+                <ComboBoxItem Tag="120" Content="2 minutes"/>
                 <ComboBoxItem Tag="300" Content="5 minutes"/>
+                <ComboBoxItem Tag="600" Content="10 minutes"/>
             </ComboBox>
         </StackPanel>
 
-        <CheckBox x:Name="ChkMute" Grid.Row="4" Content="Couper le son" IsChecked="True" Foreground="#A1A1AA" VerticalAlignment="Center"/>
+        <CheckBox x:Name="ChkMute" Grid.Row="5" Content="Couper le son" IsChecked="True" Foreground="#A1A1AA" VerticalAlignment="Center"/>
 
-        <TextBlock Grid.Row="5" Text="Supporte en temps réel les flux HLS (.m3u8), vidéos (.mp4/.webm), YouTube Live et pages web." TextWrapping="Wrap" FontSize="11.5" Foreground="#71717A" VerticalAlignment="Top" Margin="0,8,0,0"/>
+        <TextBlock Grid.Row="6" Text="En mode « Image d'un site », l'outil vérifie la page périodiquement et ne met à jour le fond d'écran que lorsqu'une nouvelle image est publiée." TextWrapping="Wrap" FontSize="11.5" Foreground="#71717A" VerticalAlignment="Top" Margin="0,6,0,6"/>
 
-        <Grid Grid.Row="6" Margin="0,12,0,0">
+        <Grid Grid.Row="7" Margin="0,10,0,0">
             <Button x:Name="BtnDisable" Style="{StaticResource MonoSecondaryButton}" Content="Supprimer" Foreground="#F87171" HorizontalAlignment="Left" Click="BtnDisable_Click"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Style="{StaticResource MonoSecondaryButton}" Content="Annuler" Margin="0,0,8,0" IsCancel="True"/>

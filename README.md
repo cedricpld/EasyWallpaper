@@ -11,7 +11,7 @@ A multi-monitor desktop wallpaper manager for Windows 11. Assigns local images, 
   - Local images (`JPG`, `PNG`, `BMP`, `WebP`, `GIF`) via click or drag-and-drop.
   - Looping local videos (`MP4`, `WebM`, `MKV`, `MOV`, `AVI`, `WMV`), muted by default.
   - Real-time live streams: HLS streams (`.m3u8`), direct video URLs, YouTube / YouTube Live, or web pages.
-  - Snapshot webcams (`JPG`, `MJPEG`) with a configurable refresh interval (`5s` to `5m`).
+  - Snapshot webcams (`JPG`, `MJPEG`) and webpage-extracted images (automatic Skaping 2160p / `og:image` detection, or custom HTML/CSS/Regex selector) with change detection and configurable refresh interval.
 - **Independent fit and crop**:
   - Per-display fit modes: `Fill`, `Fit`, `Stretch`, and `Center`.
   - Real-time preview matching the exact aspect ratio of each monitor.
