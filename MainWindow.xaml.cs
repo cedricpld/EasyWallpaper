@@ -1179,25 +1179,43 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
 
     private void BtnApply_Click(object sender, RoutedEventArgs e) => ApplyAllWallpapers();
 
+    public void HandleIpcMessage(string msg)
+    {
+        RestoreFromTray();
+        if (msg.StartsWith("IMPORT|", StringComparison.Ordinal))
+        {
+            string path = msg.Substring(7);
+            if (File.Exists(path))
+            {
+                ImportProfileFromFile(path);
+            }
+        }
+    }
+
     private void RestoreFromTray()
     {
         Show();
-        WindowState = WindowState.Normal;
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Topmost = true;
         Activate();
+        Topmost = false;
     }
 
     private void RestartApp()
     {
         string? exe = Environment.ProcessPath;
+        bool wasVisible = IsVisible;
+        ExitApp(shutdown: false);
         if (!string.IsNullOrEmpty(exe))
         {
-            string args = IsVisible ? "" : "--minimized";
+            string args = wasVisible ? "" : "--minimized";
             Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
         }
-        ExitApp();
+        System.Windows.Application.Current.Shutdown();
     }
 
-    private void ExitApp()
+    private void ExitApp(bool shutdown = true)
     {
         _forceExit = true;
         _webcamTimer.Stop();
@@ -1206,7 +1224,9 @@ if(typeof Hls!=='undefined'&&Hls.isSupported()){{
         _hosts.Clear();
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
-        System.Windows.Application.Current.Shutdown();
+        App.ReleaseSingleInstance();
+        if (shutdown)
+            System.Windows.Application.Current.Shutdown();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
